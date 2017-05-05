@@ -1587,6 +1587,17 @@ enum GCDAsyncSocketConfig
 				if (strongSelf == nil) return_from_block;
 				
 				LogVerbose(@"event4Block");
+                
+                /*
+                 这里要说到listen函数第2个参数：backlog
+                 这个参数涉及到一些网络的细节。进程处理一个一个连接请求的时候，可能还存在其它的连接请求。因为TCP连接是一个过程，所以可能存在一种半连接
+                 状态，有时由于同时尝试连接的用户过多，使得服务器进程无法快速地完成连接请求。如果这个情况出现了，服务器进程希望内核如何处理呢？
+                 内核会在自己的进程空间里维护一个队列以跟踪这些完成的连接但服务器进程还没有接手处理或正在进行的连接，这样的一个队列内核不可能让其任意大，
+                 所以必须有一个大小的上限。这个backlog告诉内核使用这个数值作为上限。
+                 毫无疑问，服务器进程不能随便指定一个数值，内核有一个许可的范围。这个范围是实现相关的。很难有某种统一，一般这个值会小30以内。
+                 
+                 numPendingConnections表示：完成连接，在内核队列中，服务器进程还没来得及接手的socket数
+                 */
 				
 				unsigned long i = 0;
 				unsigned long numPendingConnections = dispatch_source_get_data(acceptSource);
@@ -1982,6 +1993,10 @@ enum GCDAsyncSocketConfig
 			}
 			
 			// Create GCDAsyncSocket instance for accepted socket
+            
+            // 每产生一个childSocketFD就新创建一个与之对应的GCDAsynSocket。
+            // 但这个新创建的GCDAsyncSocket的delegate、delegateQueue是和parentSocketFD的GCDAsynSocket的一样，
+            // 只有socketQueue是通过delegate新生成的。
 			
 			GCDAsyncSocket *acceptedSocket = [[[self class] alloc] initWithDelegate:theDelegate
 																	  delegateQueue:delegateQueue
@@ -1999,6 +2014,8 @@ enum GCDAsyncSocketConfig
 			// Setup read and write sources for accepted socket
 			
 			dispatch_async(acceptedSocket->socketQueue, ^{ @autoreleasepool {
+                
+                // 对iOS，这里只用了GCD读写事件，而didConnect中既开了GCD读写事件，又开了CFStream读写
 				
 				[acceptedSocket setupReadAndWriteSourcesForNewlyConnectedSocket:childSocketFD];
 			}});

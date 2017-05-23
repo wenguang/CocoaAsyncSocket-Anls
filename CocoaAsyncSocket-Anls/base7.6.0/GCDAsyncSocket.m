@@ -5410,15 +5410,16 @@ enum GCDAsyncSocketConfig
 		int socketFD = (socket4FD != SOCKET_NULL) ? socket4FD : (socket6FD != SOCKET_NULL) ? socket6FD : socketUN;
 		
 		struct pollfd pfd[1];
-		pfd[0].fd = socketFD;
-		pfd[0].events = POLLOUT;
-		pfd[0].revents = 0;
+		pfd[0].fd = socketFD;       // fd: 每一个 pollfd 结构体指定了一个被监视的文件描述符
+		pfd[0].events = POLLOUT;    // events: 指定监测fd的事件（输入、输出、错误），每一个事件有多个取值，POLLOUT: 文件描述符可写
+		pfd[0].revents = 0;         // revents: 文件描述符的操作结果事件，以说明对该描述符发生了什么事件，这里先设置为0
 		
 		poll(pfd, 1, 0);
 		
+        // 执行过poll函数后，再判断revents
 		if (pfd[0].revents & POLLOUT)
 		{
-			// Socket appears to still be writeable
+			// socketFD还是可写的，在半双工状态
 			
 			shouldDisconnect = NO;
 			flags |= kReadStreamClosed;
